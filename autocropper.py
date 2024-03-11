@@ -4,11 +4,24 @@ from random import randint
 from PIL import Image
 import subprocess
 import argparse
+from typing import Literal
 class autocrop:
-    def __init__(self, filename: str, threshold: int = None, 
+    def __init__(self, filename: str, threshold: int = None, color_to_crop: Literal['black', 'white'] = None,
                  framestoanalyze: int = None, deletetemp: bool = True,
                  handlecrop: bool = False) -> None:
-        self.threshold = threshold if threshold else 10
+        if threshold:
+            if color_to_crop and color_to_crop == "white":
+                self.threshold = 255 - threshold
+            else:
+                self.threshold = threshold
+        else:
+            if color_to_crop and color_to_crop == "white":
+                self.threshold = 240
+            else:
+                self.threshold = 10
+        if deletetemp == None:
+            deletetemp = True
+        self.color = color_to_crop if color_to_crop else 'black'
         self.framestoanalyze = framestoanalyze if framestoanalyze else 5
         self.videofilename = filename
         self.frames = self.get_frame_count()
@@ -90,7 +103,7 @@ class autocrop:
     def cropimage(self, filepath):
         img = cv2.imread(filepath)
         gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
-        _,thresh = cv2.threshold(gray,self.threshold,255,cv2.THRESH_BINARY)
+        _,thresh = cv2.threshold(gray,self.threshold,255,cv2.THRESH_BINARY if self.color == "black" else cv2.THRESH_BINARY_INV)
         contours,hierarchy = cv2.findContours(thresh,cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_SIMPLE)
         cnt = contours[0]
         x,y,w,h = cv2.boundingRect(cnt)
@@ -106,6 +119,10 @@ class autocrop:
 
     def cropvideo(self, width, height):
         print(width, height)
+        if width % 2 != 0:
+            width = round(width/2)
+        if height % 2 != 0:
+            height = round(height/2)
         subprocess.run(f'ffmpeg -i {self.videofilename} -vf crop={width}:{height} -y output.mp4'.split())
         return 'output.mp4'
 if __name__ == '__main__':
@@ -115,5 +132,9 @@ if __name__ == '__main__':
     parser.add_argument('-amountframes', '-f', type=int, help='amount frames to analyze (picked at random, default 5)')
     parser.add_argument('-deletetemp', '-d', action='store_true', help='whether to delete temporary files used')
     parser.add_argument('-handlecrop', '-hc', action="store_true", help='if you want to handle crop instead of using ffmpeg, use this, this will print out width and height')
+    parser.add_argument('-color', '-c', type=str, help="color to crop, can only be white or black")
     args = parser.parse_args()
-    autocrop(filename=args.file, threshold=args.threshold, framestoanalyze=args.amountframes, deletetemp=args.deletetemp)
+    if args.color:
+        if args.color not in ["black", "white"]:
+            raise ValueError("color needs to either be black or white")
+    autocrop(filename=args.file, threshold=args.threshold, framestoanalyze=args.amountframes, deletetemp=args.deletetemp, color_to_crop=args.color)
