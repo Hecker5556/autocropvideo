@@ -1,10 +1,11 @@
-import cv2
+import cv2, os
 import numpy as np
 from random import randint
 from PIL import Image
 import subprocess
 import argparse
 from typing import Literal
+import requests
 class autocrop:
     def __init__(self, filename: str, threshold: int = None, color_to_crop: Literal['black', 'white'] = None,
                  framestoanalyze: int = None, deletetemp: bool = True,
@@ -23,6 +24,14 @@ class autocrop:
             deletetemp = True
         self.color = color_to_crop if color_to_crop else 'black'
         self.framestoanalyze = framestoanalyze if framestoanalyze else 5
+        if not os.path.exists(filename):
+            if filename.startswith("https"):
+                with open("tempfile", 'wb') as f1:
+                    for data in requests.get(filename, stream=True).iter_content(1024):
+                        f1.write(data)
+                filename = "tempfile"
+            else:
+                raise FileNotFoundError(f"Couldnt find such a file")
         self.videofilename = filename
         self.frames = self.get_frame_count()
         filepaths = []
@@ -64,7 +73,6 @@ class autocrop:
         self.height = actualheight
         print(self.width, self.height)
         if deletetemp:
-            import os
             for i in os.listdir():
                 if i.startswith('cropped') or i.startswith('thing'):
                     os.remove(i)
